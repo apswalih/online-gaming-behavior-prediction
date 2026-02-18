@@ -221,8 +221,8 @@ This ensures that the same preprocessing steps used during training are consiste
 ## How to Run Locally
 
 ```
-git clone https://github.com/apswalih/gaming-engagement-ml.git
-cd gaming-engagement-ml
+git clone https://github.com/apswalih/online-gaming-behavior-prediction.git
+cd online-gaming-behavior-prediction
 pip install -r requirements.txt
 streamlit run app/app.py
 ```
