@@ -35,7 +35,14 @@ This project formulates engagement prediction as a multi-class classification pr
 
 ## Dataset & Feature Overview
 
-The dataset contains **40,034 observations** and **13 total columns**, including:
+### Dataset Source
+
+- **Name:** Online Gaming Behavior Insight
+- **Source:** Kaggle
+- **Link:** https://www.kaggle.com/datasets/wasiqaliyasir/online-gaming-behavior-insight
+- **License:** MIT License
+
+The dataset contains **40,034 observations** and **13 columns in total**, including:
 
 * 11 predictive features
 * 1 target variable (EngagementLevel)
@@ -66,7 +73,7 @@ The dataset contains **40,034 observations** and **13 total columns**, including
 
 * InGamePurchases (0 = No, 1 = Yes)
 
-**Target**
+**Target Variable**
 
 * EngagementLevel (Low, Medium, High)
 
