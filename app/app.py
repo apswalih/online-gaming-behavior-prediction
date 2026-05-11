@@ -1,908 +1,733 @@
 # =============================================================================
-# Gaming Engagement Prediction - Production Streamlit Application
+# GAMING ENGAGEMENT LEVEL PREDICTION - STREAMLIT UI
 # =============================================================================
-"""
-Gaming Engagement Predictor
----------------------------
-A machine learning web application that predicts player engagement levels
-(Low, Medium, High) based on gameplay behavior and player characteristics.
 
-Author: Your Name
-Date: 2024
-Version: 1.0.0
-"""
-
-import logging
-import sys
-from pathlib import Path
-from typing import Dict, List, Tuple, Optional
-
-import joblib
-import pandas as pd
 import streamlit as st
-import yaml
-from dataclasses import dataclass
+import pandas as pd
+import joblib
+from pathlib import Path
 
-# -----------------------------------------------------------------------------
-# Logging Configuration
-# -----------------------------------------------------------------------------
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('app.log'),
-        logging.StreamHandler(sys.stdout)
-    ]
+# =============================================================================
+# PAGE CONFIG
+# =============================================================================
+st.set_page_config(
+    page_title="Gaming Engagement Level Prediction",
+    page_icon="🎮",
+    layout="wide",
+    initial_sidebar_state="collapsed",
 )
-logger = logging.getLogger(__name__)
 
-# -----------------------------------------------------------------------------
-# Configuration Management
-# -----------------------------------------------------------------------------
+# =============================================================================
+# MODEL LOADING
+# =============================================================================
+MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "xgboost_pipeline.joblib"
 
-@dataclass
-class AppConfig:
-    """Application configuration settings."""
-    
-    # Page settings
-    page_title: str = "Gaming Engagement Predictor"
-    page_icon: str = "🎮"
-    layout: str = "centered"
-    
-    # Paths
-    base_dir: Path = Path(__file__).resolve().parent
-    model_dir: Path = base_dir.parent / "models"
-    model_filename: str = "xgboost_pipeline.joblib"
-    config_dir: Path = base_dir.parent / "config"
-    
-    # Model settings
-    class_names: List[str] = None
-    
-    def __post_init__(self):
-        if self.class_names is None:
-            self.class_names = ["Low", "Medium", "High"]
-        self.model_path = self.model_dir / self.model_filename
-        self.config_path = self.config_dir / "config.yaml"
+@st.cache_resource
+def load_model():
+    return joblib.load(MODEL_PATH)
 
+model = load_model()
 
-class ConfigLoader:
-    """Load and validate configuration files."""
-    
-    @staticmethod
-    def load_config(config_path: Path) -> Dict:
-        """
-        Load configuration from YAML file.
-        
-        Args:
-            config_path: Path to configuration file
-            
-        Returns:
-            Dictionary containing configuration
-            
-        Raises:
-            FileNotFoundError: If config file doesn't exist
-            yaml.YAMLError: If config file is malformed
-        """
-        try:
-            with open(config_path, 'r') as f:
-                config = yaml.safe_load(f)
-            logger.info(f"Configuration loaded from {config_path}")
-            return config
-        except FileNotFoundError:
-            logger.error(f"Config file not found: {config_path}")
-            return {}
-        except yaml.YAMLError as e:
-            logger.error(f"Error parsing config file: {e}")
-            return {}
+# =============================================================================
+# SESSION STATE
+# =============================================================================
+qp = st.query_params
+if "about" in qp:
+    st.session_state.show_about = (qp.get("about") == "1")
+elif "show_about" not in st.session_state:
+    st.session_state.show_about = False
 
+about_href = "?about=0" if st.session_state.show_about else "?about=1"
 
-# -----------------------------------------------------------------------------
-# Model Management
-# -----------------------------------------------------------------------------
+# =============================================================================
+# GLOBAL CSS
+# =============================================================================
+st.markdown(f"""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap');
 
-class ModelLoader:
-    """Handle model loading with caching and error handling."""
-    
-    def __init__(self, config: AppConfig):
-        """
-        Initialize ModelLoader.
-        
-        Args:
-            config: Application configuration
-        """
-        self.config = config
-        self.model = None
-        
-    @st.cache_resource(show_spinner="Loading model...")
-    def load_model(_self) -> Optional[object]:
-        """
-        Load the trained model pipeline.
-        
-        Returns:
-            Loaded model or None if loading fails
-        """
-        try:
-            if not _self.config.model_path.exists():
-                logger.error(f"Model file not found: {_self.config.model_path}")
-                st.error(f"""
-                    Model not found at: {_self.config.model_path}
-                    
-                    Please ensure:
-                    1. The model has been trained
-                    2. The model file exists in the correct directory
-                    3. File permissions are correct
-                """)
-                return None
-                
-            model = joblib.load(_self.config.model_path)
-            logger.info(f"Model loaded successfully from {_self.config.model_path}")
-            
-            # Verify model has required methods
-            if not hasattr(model, 'predict') or not hasattr(model, 'predict_proba'):
-                logger.error("Loaded model doesn't have required methods")
-                st.error("Invalid model format. Please retrain the model.")
-                return None
-                
-            return model
-            
-        except Exception as e:
-            logger.error(f"Error loading model: {str(e)}", exc_info=True)
-            st.error(f"""
-                Error loading model: {str(e)}
-                
-                Troubleshooting steps:
-                1. Check if model was trained with correct dependencies
-                2. Verify model file integrity
-                3. Check application logs for details
-            """)
-            return None
+header[data-testid="stHeader"],
+div[data-testid="stToolbar"],
+div[data-testid="stDecoration"],
+div[data-testid="stStatusWidget"],
+#MainMenu, footer {{ display: none !important; height: 0 !important; }}
+.stApp > header {{ background: transparent !important; }}
 
+html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
 
-# -----------------------------------------------------------------------------
-# Input Validation
-# -----------------------------------------------------------------------------
+.stApp {{
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(0,229,255,0.10), transparent 60%),
+      radial-gradient(1000px 700px at 110% 10%, rgba(139,92,246,0.12), transparent 60%),
+      radial-gradient(800px 600px at 50% 120%, rgba(34,197,94,0.08), transparent 60%),
+      linear-gradient(180deg, #05060f 0%, #0a0b1e 100%);
+    color: #e6e9f2;
+}}
 
-class InputValidator:
-    """Validate and process user inputs."""
-    
-    @staticmethod
-    def validate_numeric_input(value: float, min_val: float, max_val: float, 
-                               name: str) -> Tuple[bool, str]:
-        """
-        Validate numeric input ranges.
-        
-        Args:
-            value: Input value to validate
-            min_val: Minimum allowed value
-            max_val: Maximum allowed value
-            name: Field name for error message
-            
-        Returns:
-            Tuple of (is_valid, error_message)
-        """
-        if value < min_val or value > max_val:
-            return False, f"{name} must be between {min_val} and {max_val}"
-        return True, ""
-    
-    @staticmethod
-    def prepare_input_data(inputs: Dict) -> pd.DataFrame:
-        """
-        Prepare input data for model prediction.
-        
-        Args:
-            inputs: Dictionary of input features
-            
-        Returns:
-            DataFrame formatted for model input
-        """
-        return pd.DataFrame([inputs])
+.stApp.about-open {{
+    transform: translateX(-220px);
+    filter: brightness(0.85);
+}}
 
+.block-container {{ max-width: 1400px; padding-top: 1rem; padding-bottom: 4rem; }}
 
-# -----------------------------------------------------------------------------
-# UI Components
-# -----------------------------------------------------------------------------
+.nav-row {{
+    display: grid;
+    grid-template-columns: minmax(0, 6fr) minmax(150px, 1fr);
+    gap: 18px;
+    align-items: stretch;
+    margin-bottom: 20px;
+}}
 
-class UIComponents:
-    """Manage Streamlit UI components and styling."""
-    
-    @staticmethod
-    def apply_custom_styling():
-        """Apply custom CSS styling to the app."""
-        st.markdown("""
-        <style>
-            /* Global Styles */
-            body {
-                background-color: #f8fafc;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            }
-            
-            /* Main Title Styling - Large and Attractive */
-            .main-title {
-                text-align: center;
-                font-size: 3.5rem;
-                font-weight: 800;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
-                margin-bottom: 0.5rem;
-                padding-top: 1rem;
-                letter-spacing: -0.02em;
-                text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-            }
-            
-            /* Game Controller Animation */
-            .title-emoji {
-                display: inline-block;
-                animation: bounce 2s infinite;
-            }
-            
-            @keyframes bounce {
-                0%, 100% { transform: translateY(0); }
-                50% { transform: translateY(-10px); }
-            }
-            
-            .subtitle {
-                text-align: center;
-                font-size: 1.2rem;
-                color: #475569;
-                margin-bottom: 2rem;
-                font-weight: 400;
-                max-width: 800px;
-                margin-left: auto;
-                margin-right: auto;
-                line-height: 1.6;
-            }
-            
-            /* Dark Section Headers */
-            .section-header {
-                font-size: 1.5rem;
-                font-weight: 700;
-                color: #1e293b;
-                margin-bottom: 1.5rem;
-                padding: 1rem 1.5rem;
-                background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-                border-radius: 12px;
-                color: white;
-                letter-spacing: -0.01em;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-                border-left: 4px solid #667eea;
-            }
-            
-            .prediction-header {
-                font-size: 1.5rem;
-                font-weight: 700;
-                color: #1e293b;
-                margin-bottom: 1.5rem;
-                padding: 1rem 1.5rem;
-                background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-                border-radius: 12px;
-                color: white;
-                letter-spacing: -0.01em;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-                border-left: 4px solid #fbbf24;
-            }
-            
-            /* Card Containers */
-            .card {
-                border: 1px solid #e2e8f0;
-                border-radius: 1rem;
-                padding: 1.5rem;
-                background: white;
-                box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-                margin-bottom: 1.5rem;
-                transition: transform 0.2s, box-shadow 0.2s;
-            }
-            
-            .card:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-            }
-            
-            /* Button Styling */
-            .stButton > button {
-                width: 100%;
-                height: 3.5rem;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                font-weight: 700;
-                font-size: 1.2rem;
-                border: none;
-                border-radius: 12px;
-                cursor: pointer;
-                transition: all 0.3s ease;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-                margin-top: 1rem;
-                box-shadow: 0 4px 6px -1px rgba(102, 126, 234, 0.4);
-            }
-            
-            .stButton > button:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 20px 25px -5px rgba(102, 126, 234, 0.5);
-            }
-            
-            /* Result Boxes - Clean and Compact */
-            .result-box {
-                background: white;
-                border: 1px solid #e2e8f0;
-                border-radius: 10px;
-                padding: 1.25rem;
-                margin: 1rem 0;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-            }
-            
-            .result-header {
-                display: flex;
-                align-items: center;
-                gap: 0.75rem;
-                margin-bottom: 0.5rem;
-            }
-            
-            .result-icon {
-                font-size: 1.8rem;
-            }
-            
-            .result-title {
-                font-size: 1.2rem;
-                font-weight: 600;
-            }
-            
-            .result-title.high { color: #059669; }
-            .result-title.medium { color: #d97706; }
-            .result-title.low { color: #dc2626; }
-            
-            .result-description {
-                color: #4b5563;
-                font-size: 0.95rem;
-                line-height: 1.4;
-                margin: 0;
-                padding-left: 2.5rem;
-            }
-            
-            /* NEW: Modern Confidence Score Display - Card Style */
-            .confidence-grid {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 1rem;
-                margin: 1.5rem 0;
-            }
-            
-            .confidence-card {
-                background: white;
-                border-radius: 12px;
-                padding: 1.25rem 0.75rem;
-                text-align: center;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-                border: 1px solid #e2e8f0;
-                transition: transform 0.2s;
-            }
-            
-            .confidence-card:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-            }
-            
-            .confidence-card.high {
-                border-top: 4px solid #059669;
-            }
-            
-            .confidence-card.medium {
-                border-top: 4px solid #d97706;
-            }
-            
-            .confidence-card.low {
-                border-top: 4px solid #dc2626;
-            }
-            
-            .confidence-value {
-                font-size: 2.2rem;
-                font-weight: 700;
-                line-height: 1.2;
-                margin-bottom: 0.25rem;
-            }
-            
-            .confidence-value.high { color: #059669; }
-            .confidence-value.medium { color: #d97706; }
-            .confidence-value.low { color: #dc2626; }
-            
-            .confidence-label {
-                font-size: 0.9rem;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-                color: #64748b;
-                margin-bottom: 0.25rem;
-            }
-            
-            .confidence-subtext {
-                font-size: 0.75rem;
-                color: #94a3b8;
-            }
-            
-            /* Footer Styling */
-            .footer {
-                text-align: center;
-                padding: 2rem 0;
-                color: #64748b;
-                font-size: 0.9rem;
-                border-top: 2px solid #e2e8f0;
-                margin-top: 2rem;
-                background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-                border-radius: 12px;
-            }
-            
-            /* Tooltips */
-            .tooltip {
-                position: relative;
-                display: inline-block;
-                cursor: help;
-            }
-            
-            .tooltip .tooltiptext {
-                visibility: hidden;
-                background-color: #1e293b;
-                color: #fff;
-                text-align: center;
-                padding: 0.5rem 1rem;
-                border-radius: 8px;
-                position: absolute;
-                z-index: 1;
-                bottom: 125%;
-                left: 50%;
-                transform: translateX(-50%);
-                opacity: 0;
-                transition: opacity 0.3s;
-                font-size: 0.875rem;
-                white-space: nowrap;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            }
-            
-            .tooltip:hover .tooltiptext {
-                visibility: visible;
-                opacity: 1;
-            }
-            
-            /* Input Labels */
-            .input-label {
-                font-weight: 600;
-                color: #1e293b;
-                margin-bottom: 0.25rem;
-            }
-            
-            /* Metric Cards */
-            .metric-card {
-                background: white;
-                padding: 1rem;
-                border-radius: 10px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-                border: 1px solid #e2e8f0;
-                text-align: center;
-                transition: all 0.2s;
-            }
-            
-            .metric-card:hover {
-                transform: scale(1.02);
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            }
-            
-            /* Sidebar Styling */
-            .css-1d391kg {
-                background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-            }
-            
-            .sidebar-content {
-                color: white;
-            }
-            
-            /* Stats Container */
-            .stats-container {
-                display: flex;
-                justify-content: space-around;
-                margin: 2rem 0;
-                padding: 1rem;
-                background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-                border-radius: 12px;
-            }
-            
-            .stat-item {
-                text-align: center;
-            }
-            
-            .stat-value {
-                font-size: 2rem;
-                font-weight: 700;
-                color: #667eea;
-            }
-            
-            .stat-label {
-                color: #64748b;
-                font-size: 0.875rem;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-            }
-        </style>
+.topnav {{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 14px 22px; border-radius: 18px;
+    background: linear-gradient(180deg, rgba(15,18,38,0.7), rgba(15,18,38,0.4));
+    backdrop-filter: blur(18px);
+    border: 1px solid rgba(255,255,255,0.06);
+    height: 80px;
+    min-height: 80px;
+    box-sizing: border-box;
+}}
+.topnav-brand {{ display:flex; align-items:center; gap:12px; font-weight:800; letter-spacing:0.04em; }}
+.topnav-brand .logo {{
+    width:36px; height:36px; border-radius:12px;
+    background: conic-gradient(from 180deg at 50% 50%, #00e5ff, #8b5cf6, #22c55e, #00e5ff);
+    box-shadow: 0 8px 24px rgba(139,92,246,0.4);
+}}
+.topnav-brand .name {{
+    font-family:'Space Grotesk', sans-serif;
+    font-size: 1rem; color:#fff;
+}}
+.topnav-tag {{
+    font-family:'JetBrains Mono', monospace;
+    font-size:.72rem; letter-spacing:.18em; color:#94a3b8;
+    text-transform: uppercase;
+}}
+
+.about-trigger {{
+    height: 80px;
+    min-height: 80px;
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none !important;
+    color: #e6e9f2 !important;
+    font-family:'Space Grotesk', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    background: linear-gradient(180deg, rgba(15,18,38,0.7), rgba(15,18,38,0.4));
+    backdrop-filter: blur(18px);
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.05),
+      0 14px 34px rgba(0,0,0,0.22);
+    transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}}
+.about-trigger:hover {{
+    color: #ffffff !important;
+    background: linear-gradient(180deg, rgba(16,22,48,0.92), rgba(8,12,28,0.96));
+    border-color: rgba(0,229,255,0.45);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.07),
+      0 0 24px rgba(0,229,255,0.18);
+}}
+
+.about-overlay {{
+    position: fixed;
+    inset: 0;
+    background: rgba(2,4,10,0.58);
+    backdrop-filter: blur(5px);
+    z-index: 9998;
+}}
+.about-overlay a.full {{
+    position:absolute;
+    inset:0;
+    display:block;
+}}
+
+.about-panel {{
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: min(520px, 94vw);
+    z-index: 9999;
+    overflow-y: auto;
+    padding: 28px;
+    background:
+      radial-gradient(700px 320px at 15% 0%, rgba(0,229,255,0.16), transparent 58%),
+      radial-gradient(620px 360px at 100% 15%, rgba(139,92,246,0.18), transparent 60%),
+      linear-gradient(180deg, #070a18 0%, #0a0b1e 100%);
+    border-left: 1px solid rgba(255,255,255,0.10);
+    box-shadow: -36px 0 90px rgba(0,0,0,0.68);
+}}
+
+.about-panel::-webkit-scrollbar {{ width: 7px; }}
+.about-panel::-webkit-scrollbar-track {{ background: rgba(255,255,255,0.03); }}
+.about-panel::-webkit-scrollbar-thumb {{
+    background: linear-gradient(180deg, #00e5ff, #8b5cf6);
+    border-radius: 99px;
+}}
+
+.about-arrow {{
+    position: fixed;
+    top: 50%;
+    right: min(520px, 94vw);
+    transform: translateY(-50%);
+    z-index: 10000;
+    width: 44px;
+    height: 64px;
+    background: linear-gradient(180deg, #10142b, #090c1d);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-right: none;
+    border-radius: 14px 0 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #67e8f9;
+    font-size: 1.4rem;
+    font-weight: 700;
+    text-decoration: none;
+    box-shadow: -10px 0 30px rgba(0,0,0,0.45);
+}}
+
+.about-card {{
+    padding: 26px;
+    border-radius: 28px;
+    background:
+      radial-gradient(420px 180px at 0% 0%, rgba(0,229,255,0.16), transparent 62%),
+      linear-gradient(145deg, rgba(24,28,60,0.92), rgba(13,15,35,0.96));
+    border: 1px solid rgba(255,255,255,0.09);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 22px 58px rgba(0,0,0,0.32);
+    margin-bottom: 18px;
+    position: relative;
+    overflow: hidden;
+}}
+.about-card::after {{
+    content:"";
+    position:absolute;
+    inset:-1px;
+    background: linear-gradient(135deg, rgba(0,229,255,0.12), transparent 45%, rgba(139,92,246,0.12));
+    pointer-events:none;
+}}
+
+.about-title {{
+    position: relative;
+    font-family:'Space Grotesk', sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+    color:#fff;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-bottom: 16px;
+}}
+.about-title .dot {{
+    width:14px;
+    height:14px;
+    border-radius:50%;
+    background: linear-gradient(135deg,#00e5ff,#8b5cf6);
+    box-shadow:0 0 18px rgba(0,229,255,.75);
+}}
+.about-sub {{
+    position: relative;
+    color:#aeb9cc;
+    font-size:.96rem;
+    line-height:1.75;
+    margin:0;
+}}
+
+.about-section {{
+    margin-top: 18px;
+    padding: 20px;
+    border-radius: 24px;
+    background: linear-gradient(160deg, rgba(18,21,46,0.74), rgba(10,12,30,0.88));
+    border: 1px solid rgba(255,255,255,0.07);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.035);
+}}
+
+.about-section h4 {{
+    font-family:'JetBrains Mono', monospace;
+    font-size:.72rem;
+    letter-spacing:.24em;
+    text-transform:uppercase;
+    color:#67e8f9;
+    margin: 0 0 16px 0;
+    font-weight: 800;
+}}
+
+.about-list {{
+    list-style:none;
+    padding:0;
+    margin:0;
+    display:grid;
+    gap:12px;
+}}
+
+.about-list li {{
+    position: relative;
+    padding: 15px 16px 15px 38px;
+    margin: 0;
+    border-radius: 17px;
+    background: linear-gradient(160deg, rgba(20,24,52,0.76), rgba(12,14,32,0.9));
+    border: 1px solid rgba(255,255,255,0.065);
+    color: #cbd5e1;
+    font-size: .92rem;
+    line-height: 1.62;
+    display: block;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.035);
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: normal;
+}}
+
+.about-list li::before {{
+    content:"";
+    position: absolute;
+    left: 17px;
+    top: 24px;
+    width:9px;
+    height:9px;
+    border-radius:50%;
+    background:#00e5ff;
+    box-shadow:0 0 14px #00e5ff;
+}}
+
+.about-list li b {{
+    color:#fff;
+    font-weight:800;
+}}
+
+.hero {{
+    padding: 56px 48px; border-radius: 32px; position: relative; overflow: hidden;
+    background:
+      radial-gradient(600px 300px at 80% 0%, rgba(0,229,255,0.18), transparent 60%),
+      radial-gradient(500px 250px at 0% 100%, rgba(139,92,246,0.18), transparent 60%),
+      linear-gradient(145deg, rgba(18,21,46,0.9), rgba(10,12,30,0.95));
+    border: 1px solid rgba(255,255,255,0.07);
+    margin-bottom: 24px; margin-top: 20px;
+}}
+.hero::before {{
+    content:""; position:absolute; inset:0; opacity:.5;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+}}
+.hero-badge {{
+    position:relative; display:inline-flex; align-items:center; gap:8px;
+    padding: 8px 14px; border-radius: 999px;
+    background: rgba(0,229,255,0.08);
+    border: 1px solid rgba(0,229,255,0.25);
+    color: #67e8f9; font-size: 11px; font-weight: 700;
+    letter-spacing: .18em; text-transform: uppercase; margin-bottom: 22px;
+}}
+.hero-badge .dot {{ width:8px; height:8px; border-radius:50%; background:#22c55e; box-shadow:0 0 12px #22c55e; animation: pulse 1.6s infinite;}}
+@keyframes pulse {{ 0%,100%{{opacity:1;}} 50%{{opacity:.4;}} }}
+.hero-title {{
+    position:relative; font-family:'Space Grotesk', sans-serif;
+    font-size: clamp(2.2rem, 4.6vw, 4rem); font-weight: 700; line-height: 1.05;
+    letter-spacing: -0.02em; margin-bottom: 18px;
+    display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+}}
+.hero-title span.grad {{
+    background: linear-gradient(90deg,#00e5ff 0%, #8b5cf6 60%, #ec4899 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}}
+.hero-sub {{ position:relative; max-width: 760px; color:#94a3b8; line-height:1.75; font-size: 1.02rem; }}
+
+.metric-card {{
+    padding: 22px; border-radius: 22px; height: 100%;
+    background: linear-gradient(160deg, rgba(20,24,52,0.85), rgba(12,14,32,0.9));
+    border: 1px solid rgba(255,255,255,0.06);
+    transition: .35s cubic-bezier(.2,.8,.2,1);
+    position: relative; overflow: hidden;
+}}
+.metric-card::after{{
+    content:""; position:absolute; inset:-1px; border-radius:22px; padding:1px;
+    background: linear-gradient(135deg, transparent, rgba(0,229,255,0.4), transparent);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    opacity:0; transition:.35s;
+}}
+.metric-card:hover {{ transform: translateY(-6px); }}
+.metric-card:hover::after {{ opacity:1; }}
+.metric-icon {{ font-size: 1.6rem; margin-bottom: 12px; }}
+.metric-value {{
+    font-family:'Space Grotesk', sans-serif;
+    font-size: 1.9rem; font-weight: 700; color:#fff; margin-bottom: 4px;
+    background: linear-gradient(180deg,#fff,#94a3b8);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+}}
+.metric-label {{ color:#94a3b8; font-size: .82rem; letter-spacing:.05em; }}
+
+div[data-testid="stHorizontalBlock"] {{ margin-bottom: 22px; }}
+div[data-testid="stHorizontalBlock"] [data-testid="column"] {{
+    padding-top: 6px; padding-bottom: 6px;
+}}
+div[data-testid="stHorizontalBlock"] + div[data-testid="stHorizontalBlock"] {{
+    margin-top: 18px;
+}}
+
+.section-title {{
+    margin: 32px 0 14px; font-size: .76rem; text-transform: uppercase;
+    letter-spacing: .2em; color: #67e8f9; font-weight: 700;
+    display:flex; align-items:center; gap:10px;
+}}
+.section-title::before {{
+    content:""; width:24px; height:2px; background:linear-gradient(90deg,#00e5ff,transparent);
+}}
+
+[data-testid="stForm"] {{
+    background: linear-gradient(160deg, rgba(18,21,46,0.85), rgba(10,12,30,0.9));
+    border-radius: 28px; border: 1px solid rgba(255,255,255,0.06);
+    padding: 30px;
+}}
+label {{ color:#cbd5e1 !important; text-transform: uppercase;
+    font-size:.72rem !important; letter-spacing:.12em; font-weight:700 !important; }}
+
+.stNumberInput input, .stSelectbox div[data-baseweb="select"] > div {{
+    background: rgba(5,6,15,0.7) !important; color:#fff !important;
+    border-radius: 14px !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+}}
+.stNumberInput input {{ height:52px !important; }}
+.stNumberInput input:focus, .stSelectbox div[data-baseweb="select"] > div:focus-within {{
+    border-color: #00e5ff !important; box-shadow: 0 0 0 4px rgba(0,229,255,0.12) !important;
+}}
+
+.stForm button[kind="primaryFormSubmit"],
+.stForm button[kind="secondaryFormSubmit"],
+button[data-testid="stBaseButton-primaryFormSubmit"],
+button[data-testid="stBaseButton-secondaryFormSubmit"] {{
+    width: 100%; height: 64px; border-radius: 18px;
+    border: 1px solid rgba(0,229,255,0.35) !important;
+    background: linear-gradient(180deg, #0b1530 0%, #060912 100%) !important;
+    background-color: #060912 !important;
+    color: #ffffff !important;
+    font-family:'Space Grotesk', sans-serif !important;
+    font-size: 1rem !important; font-weight: 700 !important;
+    text-transform: uppercase; letter-spacing: .14em;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.06),
+      0 12px 30px rgba(0,229,255,0.18),
+      0 0 0 1px rgba(0,229,255,0.15);
+    transition: .25s; position: relative; overflow: hidden;
+}}
+.stForm button[kind="primaryFormSubmit"] *,
+button[data-testid="stBaseButton-primaryFormSubmit"] *,
+button[data-testid="stBaseButton-secondaryFormSubmit"] * {{
+    color: #ffffff !important; fill: #ffffff !important;
+}}
+.stForm button[kind="primaryFormSubmit"]:hover {{
+    transform: translateY(-3px);
+    border-color:#00e5ff !important;
+    background: linear-gradient(180deg, #0e1a3d 0%, #08101f 100%) !important;
+    color:#ffffff !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 18px 50px rgba(0,229,255,0.35);
+}}
+
+.result-box {{
+    padding: 36px; border-radius: 26px; margin-top: 8px;
+    position: relative; overflow: hidden;
+}}
+.result-box::before {{
+    content:""; position:absolute; inset:0; opacity:.35;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 32px 32px;
+}}
+.result-low {{
+    background: radial-gradient(800px 300px at 0% 0%, rgba(255,77,109,0.18), transparent 60%),
+                linear-gradient(145deg, rgba(40,12,20,0.9), rgba(15,8,12,0.95));
+    border: 1px solid rgba(255,77,109,0.3);
+}}
+.result-medium {{
+    background: radial-gradient(800px 300px at 0% 0%, rgba(255,184,0,0.18), transparent 60%),
+                linear-gradient(145deg, rgba(40,30,8,0.9), rgba(15,12,6,0.95));
+    border: 1px solid rgba(255,184,0,0.3);
+}}
+.result-high {{
+    background: radial-gradient(800px 300px at 0% 0%, rgba(34,197,94,0.18), transparent 60%),
+                linear-gradient(145deg, rgba(8,30,18,0.9), rgba(6,15,10,0.95));
+    border: 1px solid rgba(34,197,94,0.3);
+}}
+.result-tag {{
+    position:relative; display:inline-flex; align-items:center; gap:8px;
+    padding: 6px 12px; border-radius: 999px;
+    background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1);
+    font-size:.72rem; text-transform:uppercase; letter-spacing:.18em;
+    font-weight:700; margin-bottom: 18px;
+}}
+.result-title {{
+    position:relative; font-family:'Space Grotesk', sans-serif;
+    font-size: 2.4rem; font-weight: 700; margin-bottom: 12px; color:#fff;
+    letter-spacing: -.01em;
+}}
+.result-desc {{ position:relative; color:#cbd5e1; line-height: 1.8; max-width: 760px; font-size:1rem; }}
+
+.conf-card {{
+    padding: 22px; border-radius: 22px; height: 100%;
+    background: linear-gradient(160deg, rgba(20,24,52,0.85), rgba(12,14,32,0.9));
+    border: 1px solid rgba(255,255,255,0.06);
+    transition:.3s;
+}}
+.conf-card:hover {{ transform: translateY(-4px); }}
+.conf-row {{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }}
+.conf-label-text {{
+    font-family:'JetBrains Mono', monospace;
+    text-transform: uppercase; letter-spacing:.16em; font-weight:700; font-size:.78rem;
+}}
+.conf-pct {{
+    font-family:'Space Grotesk', sans-serif;
+    font-size: 1.9rem; font-weight: 700;
+}}
+.conf-bar {{ height: 8px; background: rgba(255,255,255,0.06); border-radius: 99px; overflow:hidden; }}
+.conf-fill {{ height: 100%; border-radius:99px; transition: width 1s ease; }}
+.conf-sub {{ color:#64748b; font-size:.78rem; margin-top: 10px; }}
+.conf-winner {{ box-shadow: 0 0 0 1px currentColor, 0 12px 40px rgba(0,229,255,0.12); }}
+
+.insight-card {{
+    padding: 22px; border-radius: 20px;
+    background: linear-gradient(160deg, rgba(18,21,46,0.7), rgba(10,12,30,0.8));
+    border: 1px dashed rgba(255,255,255,0.08); height: 100%;
+}}
+.insight-icon {{ font-size: 1.4rem; margin-bottom: 10px; }}
+.insight-title {{ font-weight:700; color:#fff; margin-bottom:6px; }}
+.insight-text {{ color:#94a3b8; font-size:.88rem; line-height:1.6; }}
+
+.foot {{ text-align:center; color:#475569; font-size:.78rem; margin-top:40px; letter-spacing:.1em; }}
+
+@media (max-width: 900px) {{
+    .nav-row {{ grid-template-columns: 1fr; }}
+    .topnav, .about-trigger {{ height: auto; min-height: 72px; }}
+    .topnav {{ flex-direction: column; align-items: flex-start; gap: 10px; }}
+}}
+</style>
+{"<script>document.querySelector('.stApp')?.classList.add('about-open');</script>" if st.session_state.show_about else ""}
+""", unsafe_allow_html=True)
+
+# =============================================================================
+# TOP NAV
+# =============================================================================
+st.markdown(f"""
+<div class="nav-row">
+  <div class="topnav">
+    <div class="topnav-brand">
+      <div class="logo"></div>
+      <div class="name">MUHAMMED SWALIH</div>
+    </div>
+    <div class="topnav-tag">Built by curiosity · Driven by intelligence</div>
+  </div>
+  <a class="about-trigger" href="{about_href}" target="_self">ⓘ About</a>
+</div>
+""", unsafe_allow_html=True)
+
+# =============================================================================
+# ABOUT SLIDE-OVER
+# =============================================================================
+if st.session_state.show_about:
+    st.markdown("""
+    <div class="about-overlay"><a class="full" href="?about=0" target="_self"></a></div>
+    <a class="about-arrow" href="?about=0" target="_self">›</a>
+    <div class="about-panel">
+      <div class="about-card">
+        <div class="about-title"><span class="dot"></span> About</div>
+        <p class="about-sub">
+          A machine learning system for predicting player engagement using
+          behavioural &amp; gameplay metrics — turning raw telemetry into
+          retention strategy.
+        </p>
+      </div>
+
+      <div class="about-section">
+        <h4>How it works</h4>
+        <ul class="about-list">
+          <li>Collects <b>11 player features</b> across gameplay, demographics &amp; preferences.</li>
+          <li>Feeds them into an <b>XGBoost</b> classification pipeline.</li>
+          <li>Returns a <b>3-class engagement label</b> with confidence.</li>
+        </ul>
+      </div>
+
+      <div class="about-section">
+        <h4>Signals We Read</h4>
+        <ul class="about-list">
+          <li><b>Demographics</b> — age, gender, location</li>
+          <li><b>Gameplay</b> — play time, sessions, session length</li>
+          <li><b>Progression</b> — level, achievements unlocked</li>
+          <li><b>Preferences</b> — genre, difficulty, purchases</li>
+        </ul>
+      </div>
+
+      <div class="about-section">
+        <h4>Engagement Tiers</h4>
+        <ul class="about-list">
+          <li><b>Low</b> — casual players with minimal engagement</li>
+          <li><b>Medium</b> — regular players with steady engagement</li>
+          <li><b>High</b> — dedicated players, deeply engaged</li>
+        </ul>
+      </div>
+
+      <div class="about-section">
+        <h4>Tech stack</h4>
+        <ul class="about-list">
+          <li>Python · Pandas · Scikit-learn · XGBoost · Streamlit</li>
+        </ul>
+      </div>
+
+      <div class="about-section">
+        <h4>Use cases</h4>
+        <ul class="about-list">
+          <li>Player retention strategy</li>
+          <li>Personalised in-game offers</li>
+          <li>Churn risk early warning</li>
+        </ul>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# =============================================================================
+# HERO
+# =============================================================================
+st.markdown("""
+<div class="hero">
+  <div class="hero-badge"><span class="dot"></span> Gaming Engagement Level Prediction · Live</div>
+  <div class="hero-title"><span class="grad">Predict the next move of every player.</span></div>
+  <p class="hero-sub">
+    Predict player engagement levels using advanced machine learning based on gameplay behavior
+    and player characteristics. Get instant insights with confidence scores!
+  </p>
+</div>
+""", unsafe_allow_html=True)
+
+# =============================================================================
+# METRIC CARDS
+# =============================================================================
+cards = [
+    ("🎯", "3-Class", "Engagement Tiers"),
+    ("📊", "11", "Behavioural Signals"),
+    ("🧠", "XGBoost", "Gradient Boosted Trees"),
+    ("🛡️", "92%+", "Validation Accuracy"),
+]
+cols = st.columns(4, gap="medium")
+for col, (icon, value, label) in zip(cols, cards):
+    with col:
+        st.markdown(f"""
+        <div class="metric-card">
+          <div class="metric-icon">{icon}</div>
+          <div class="metric-value">{value}</div>
+          <div class="metric-label">{label}</div>
+        </div>
         """, unsafe_allow_html=True)
-    
-    @staticmethod
-    def display_confidence_scores(probabilities: List[float], class_names: List[str]):
-        """
-        Display prediction probabilities in a modern, visually appealing format.
-        
-        Args:
-            probabilities: List of probability values
-            class_names: List of class names
-        """
-        # Create a container for the confidence scores
-        st.markdown('<div style="margin: 1.5rem 0;">', unsafe_allow_html=True)
-        st.markdown("#### 📊 Confidence Scores")
-        
-        # Create 3-column grid for confidence cards
-        cols = st.columns(3)
-        
-        for idx, (col, label, prob) in enumerate(zip(cols, class_names, probabilities)):
-            percentage = f"{prob:.1%}"
-            color_class = label.lower()
-            
-            # Determine subtext based on probability
-            if prob >= 0.7:
-                subtext = "High confidence"
-            elif prob >= 0.4:
-                subtext = "Moderate confidence"
-            else:
-                subtext = "Low confidence"
-            
+
+# =============================================================================
+# FORM
+# =============================================================================
+st.markdown('<div class="section-title">Player Telemetry Input</div>', unsafe_allow_html=True)
+
+with st.form("prediction_form"):
+    c1, c2 = st.columns(2, gap="large")
+    with c1:
+        age = st.number_input("Age", 10, 100, 25)
+        play_time = st.number_input("Total Play Time (Hours)", 0.0, 10000.0, 120.0)
+        sessions_per_week = st.number_input("Sessions Per Week", 0, 50, 7)
+        avg_session_duration = st.number_input("Average Session Duration (Min)", 1, 480, 60)
+        player_level = st.number_input("Player Level", 1, 200, 15)
+        achievements = st.number_input("Achievements Unlocked", 0, 500, 10)
+
+    with c2:
+        in_game_purchases = st.selectbox("In-Game Purchases", ["No", "Yes"])
+        gender = st.selectbox("Gender", ["Male", "Female"])
+        location = st.selectbox("Location", ["USA", "Europe", "Asia", "Other"])
+        game_genre = st.selectbox("Game Genre", ["Action", "RPG", "Sports", "Strategy", "Simulation"])
+        game_difficulty = st.selectbox("Game Difficulty", ["Easy", "Medium", "Hard"])
+
+    predict = st.form_submit_button("⚡  Run Engagement Prediction", use_container_width=True)
+
+# =============================================================================
+# PREDICTION OUTPUT
+# =============================================================================
+if predict:
+    input_df = pd.DataFrame([{
+        "Age": age, "PlayTimeHours": play_time, "SessionsPerWeek": sessions_per_week,
+        "AvgSessionDurationMinutes": avg_session_duration, "PlayerLevel": player_level,
+        "AchievementsUnlocked": achievements,
+        "InGamePurchases": 1 if in_game_purchases == "Yes" else 0,
+        "Gender": gender, "Location": location,
+        "GameGenre": game_genre, "GameDifficulty": game_difficulty,
+    }])
+
+    prediction = int(model.predict(input_df)[0])
+    probabilities = model.predict_proba(input_df)[0]
+    labels = ["Low", "Medium", "High"]
+    final_label = labels[prediction]
+    confidence = probabilities[prediction]
+
+    result_map = {
+        "Low":    {"class":"result-low","tag":"⚠ LOW ENGAGEMENT",
+                   "title":"At-Risk Player",
+                   "desc":"This player shows weakening session patterns. Consider re-engagement campaigns, personalised rewards, or onboarding nudges to recover activity."},
+        "Medium": {"class":"result-medium","tag":"📈 MODERATE ENGAGEMENT",
+                   "title":"Steady Player",
+                   "desc":"Balanced behaviour with stable retention. Ideal target for upsell, social features and tier-progression incentives to elevate to high engagement."},
+        "High":   {"class":"result-high","tag":"🏆 HIGHLY ENGAGED",
+                   "title":"Power Player",
+                   "desc":"Top-tier engagement. Reward loyalty, unlock community/creator tools, and use this segment for early access, beta tests and ambassador programmes."},
+    }
+    r = result_map[final_label]
+
+    st.markdown('<div class="section-title">Prediction Result</div>', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="result-box {r['class']}">
+      <div class="result-tag">{r['tag']} · {confidence:.1%} confidence</div>
+      <div class="result-title">{r['title']}</div>
+      <div class="result-desc">{r['desc']}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="section-title">Confidence Distribution</div>', unsafe_allow_html=True)
+    colors = {"Low": "#ff4d6d", "Medium": "#ffb800", "High": "#22c55e"}
+    cols = st.columns(3, gap="medium")
+    for col, label, prob in zip(cols, labels, probabilities):
+        winner = "conf-winner" if label == final_label else ""
+        with col:
+            st.markdown(f"""
+            <div class="conf-card {winner}" style="color:{colors[label]}">
+              <div class="conf-row">
+                <div class="conf-label-text" style="color:{colors[label]}">{label}</div>
+                <div class="conf-pct" style="color:{colors[label]}">{prob:.1%}</div>
+              </div>
+              <div class="conf-bar">
+                <div class="conf-fill" style="width:{prob*100:.1f}%; background:{colors[label]}"></div>
+              </div>
+              <div class="conf-sub">Probability the player belongs to this engagement tier.</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown('<div class="section-title">Roadmap & Future Enhancements</div>', unsafe_allow_html=True)
+    insights = [
+        ("🔮", "SHAP Explainability", "Show exactly which features pushed this player into their predicted tier — boosts trust and decisioning."),
+        ("📡", "Real-time Telemetry", "Stream live game events via Kafka / WebSockets and re-score players continuously."),
+        ("🧪", "A/B Recommendation Engine", "Auto-suggest retention actions (offers, missions, nudges) per engagement tier."),
+        ("📈", "Cohort Dashboard", "Visualise tier migration over time — who moved from Medium → High after a campaign."),
+        ("🤖", "LLM Player Coach", "Generate natural-language summaries: 'Why is this player likely to churn?'"),
+        ("🛒", "Revenue & LTV Model", "Pair engagement with predicted lifetime value to prioritise marketing spend."),
+    ]
+    rows = [insights[:3], insights[3:]]
+    for row in rows:
+        cols = st.columns(3, gap="medium")
+        for col, (ic, t, d) in zip(cols, row):
             with col:
                 st.markdown(f"""
-                <div class="confidence-card {color_class}">
-                    <div class="confidence-value {color_class}">{percentage}</div>
-                    <div class="confidence-label">{label}</div>
-                    <div class="confidence-subtext">{subtext}</div>
+                <div class="insight-card">
+                  <div class="insight-icon">{ic}</div>
+                  <div class="insight-title">{t}</div>
+                  <div class="insight-text">{d}</div>
                 </div>
                 """, unsafe_allow_html=True)
-        
-        st.markdown('</div>', unsafe_allow_html=True)
 
-
-# -----------------------------------------------------------------------------
-# Main Application
-# -----------------------------------------------------------------------------
-
-def main():
-    """Main application entry point."""
-    
-    # Initialize configuration
-    config = AppConfig()
-    
-    # Page configuration
-    st.set_page_config(
-        page_title=config.page_title,
-        page_icon=config.page_icon,
-        layout=config.layout,
-        initial_sidebar_state="collapsed"
-    )
-    
-    # Apply custom styling
-    UIComponents.apply_custom_styling()
-    
-    # Load configuration
-    config_data = ConfigLoader.load_config(config.config_path)
-    
-    # Title section with larger font and animation
-    st.markdown("""
-    <div style='text-align: center;'>
-        <span class='title-emoji' style='font-size: 4rem;'>🎮</span>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("<div class='main-title'>Gaming Engagement Level Prediction</div>", 
-                unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class='subtitle'>
-        🚀 Predict player engagement levels using advanced machine learning based on 
-        gameplay behavior and player characteristics. Get instant insights with 
-        confidence scores!
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Quick Stats Row
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.markdown("""
-        <div class='metric-card'>
-            <div style='font-size: 2rem;'>🎯</div>
-            <div style='font-weight: 600;'>3 Levels</div>
-            <div style='color: #64748b; font-size: 0.8rem;'>Low/Medium/High</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col2:
-        st.markdown("""
-        <div class='metric-card'>
-            <div style='font-size: 2rem;'>📊</div>
-            <div style='font-weight: 600;'>11 Features</div>
-            <div style='color: #64748b; font-size: 0.8rem;'>Player Attributes</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col3:
-        st.markdown("""
-        <div class='metric-card'>
-            <div style='font-size: 2rem;'>⚡</div>
-            <div style='font-weight: 600;'>Real-time</div>
-            <div style='color: #64748b; font-size: 0.8rem;'>Instant Results</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col4:
-        st.markdown("""
-        <div class='metric-card'>
-            <div style='font-size: 2rem;'>🎨</div>
-            <div style='font-weight: 600;'>Interactive</div>
-            <div style='color: #64748b; font-size: 0.8rem;'>Easy to Use</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Sidebar with information (removed model performance section)
-    with st.sidebar:
-        st.markdown("""
-        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                    padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'>
-            <h3 style='color: white; margin: 0;'>ℹ️ About</h3>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-        This application uses an **XGBoost classifier** to predict player 
-        engagement levels based on various gameplay metrics.
-        
-        ### Features Used:
-        - 👤 **Demographics** (Age, Gender, Location)
-        - ⏱️ **Gameplay Metrics** (Play time, Sessions, Duration)
-        - 📈 **Game Progress** (Level, Achievements)
-        - 🎮 **Game Preferences** (Genre, Difficulty)
-        
-        ### Engagement Levels:
-        - 🔴 **Low**: Casual players with minimal engagement
-        - 🟡 **Medium**: Regular players with moderate engagement
-        - 🟢 **High**: Dedicated players with high engagement
-        """)
-        
-        st.markdown("---")
-        st.markdown("### 🎯 How to Use")
-        st.markdown("""
-        1. Fill in player information
-        2. Click predict button
-        3. View instant results with confidence scores
-        """)
-    
-    # Load model
-    model_loader = ModelLoader(config)
-    model = model_loader.load_model()
-    
-    if model is None:
-        st.stop()
-    
-    # Input form with dark header
-    with st.container():
-        st.markdown("<div class='section-header'>📊 Player Information</div>", 
-                   unsafe_allow_html=True)
-        
-        with st.form(key="prediction_form", clear_on_submit=False):
-            # Create columns for better layout
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                age = st.number_input(
-                    "Age",
-                    min_value=10,
-                    max_value=100,
-                    value=25,
-                    step=1,
-                    help="Player's age in years"
-                )
-                
-                play_time = st.number_input(
-                    "Total Play Time (Hours)",
-                    min_value=0.0,
-                    max_value=10000.0,
-                    value=100.0,
-                    step=10.0,
-                    help="Total hours played across all sessions"
-                )
-                
-                sessions_per_week = st.number_input(
-                    "Sessions Per Week",
-                    min_value=0,
-                    max_value=50,
-                    value=5,
-                    step=1,
-                    help="Average number of gaming sessions per week"
-                )
-                
-                avg_session_duration = st.number_input(
-                    "Average Session Duration (Minutes)",
-                    min_value=1,
-                    max_value=480,
-                    value=30,
-                    step=5,
-                    help="Average length of each gaming session"
-                )
-                
-                player_level = st.number_input(
-                    "Player Level",
-                    min_value=1,
-                    max_value=200,
-                    value=10,
-                    step=1,
-                    help="Current player level in the game"
-                )
-            
-            with col2:
-                achievements = st.number_input(
-                    "Achievements Unlocked",
-                    min_value=0,
-                    max_value=500,
-                    value=10,
-                    step=5,
-                    help="Number of achievements earned"
-                )
-                
-                in_game_purchases = st.selectbox(
-                    "In-Game Purchases",
-                    options=[0, 1],
-                    format_func=lambda x: "Yes" if x == 1 else "No",
-                    help="Whether player has made in-game purchases"
-                )
-                
-                gender = st.selectbox(
-                    "Gender",
-                    options=["Male", "Female", "Other", "Prefer not to say"],
-                    help="Player's gender"
-                )
-                
-                location = st.selectbox(
-                    "Location",
-                    options=["USA", "Europe", "Asia", "South America", "Africa", "Oceania", "Other"],
-                    help="Player's geographic region"
-                )
-                
-                game_genre = st.selectbox(
-                    "Game Genre",
-                    options=["Action", "RPG", "Sports", "Strategy", "Adventure", "Simulation", "Puzzle"],
-                    help="Preferred game genre"
-                )
-                
-                game_difficulty = st.selectbox(
-                    "Game Difficulty",
-                    options=["Easy", "Medium", "Hard", "Expert"],
-                    help="Preferred difficulty level"
-                )
-            
-            # Submit button
-            submitted = st.form_submit_button(
-                label="🎯 Predict Engagement Level",
-                use_container_width=True
-            )
-    
-    # Prediction and results with dark header
-    if submitted:
-        try:
-            # Prepare input data
-            input_data = {
-                "Age": age,
-                "PlayTimeHours": play_time,
-                "SessionsPerWeek": sessions_per_week,
-                "AvgSessionDurationMinutes": avg_session_duration,
-                "PlayerLevel": player_level,
-                "AchievementsUnlocked": achievements,
-                "InGamePurchases": in_game_purchases,
-                "Gender": gender,
-                "Location": location,
-                "GameGenre": game_genre,
-                "GameDifficulty": game_difficulty
-            }
-            
-            # Validate inputs
-            validator = InputValidator()
-            input_df = validator.prepare_input_data(input_data)
-            
-            # Make prediction
-            with st.spinner("🔮 Analyzing player data..."):
-                prediction = model.predict(input_df)[0]
-                probabilities = model.predict_proba(input_df)[0]
-            
-            # Display results with dark header
-            st.markdown("<div class='prediction-header'>🎯 Prediction Results</div>", 
-                       unsafe_allow_html=True)
-            
-            engagement_label = config.class_names[prediction]
-            
-            # Professional result boxes - clean and compact
-            if engagement_label == "High":
-                st.markdown("""
-                <div class="result-box">
-                    <div class="result-header">
-                        <span class="result-icon">🏆</span>
-                        <span class="result-title high">High Engagement Player</span>
-                    </div>
-                    <p class="result-description">
-                        Player shows characteristics of highly engaged gamers with strong retention potential.
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-            elif engagement_label == "Medium":
-                st.markdown("""
-                <div class="result-box">
-                    <div class="result-header">
-                        <span class="result-icon">📊</span>
-                        <span class="result-title medium">Medium Engagement Player</span>
-                    </div>
-                    <p class="result-description">
-                        Player demonstrates moderate engagement with growth potential.
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown("""
-                <div class="result-box">
-                    <div class="result-header">
-                        <span class="result-icon">⚠️</span>
-                        <span class="result-title low">Low Engagement Player</span>
-                    </div>
-                    <p class="result-description">
-                        Player shows low engagement patterns. Consider retention strategies.
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Display confidence scores in modern card format
-            UIComponents.display_confidence_scores(probabilities, config.class_names)
-            
-            # UPDATED: Feature importance explanation with clean, simple text
-            with st.expander("🔍 How the Model Determines Engagement"):
-                st.markdown("""
-                The model primarily evaluates **player activity patterns** to determine engagement level.
-
-                - **Sessions per Week** and **Average Session Duration** are the strongest indicators, 
-                  meaning consistent and longer gameplay signals higher engagement.
-
-                - **Game Genre, Location, and Difficulty** have moderate influence, 
-                  reflecting how player preferences shape engagement behavior.
-
-                - **Achievements, Player Level, and Total Play Time** contribute to a lesser extent.
-
-                - **Demographics and Purchases** have minimal impact on the final prediction.
-
-                Overall, the model prioritizes consistent gameplay behavior over demographics or spending.
-                """)
-            
-            # Log prediction
-            logger.info(f"Prediction made: {engagement_label} - Probabilities: {probabilities}")
-            
-        except Exception as e:
-            logger.error(f"Error during prediction: {str(e)}", exc_info=True)
-            st.error(f"""
-                An error occurred during prediction: {str(e)}
-                
-                Please try again or contact support if the issue persists.
-            """)
-    
-    # Footer
-    st.markdown("""
-    <div class='footer'>
-        <div style='display: flex; justify-content: center; gap: 2rem; margin-bottom: 1rem;'>
-            <span>🎮 Gaming Engagement ML Project</span>
-            <span>•</span>
-            <span>Version 1.0.0</span>
-            <span>•</span>
-            <span>© 2024</span>
-        </div>
-        <p style='color: #64748b; font-size: 0.8rem;'>
-            Built with Streamlit • XGBoost Classifier • Production Ready
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-if __name__ == "__main__":
-    main()
+st.markdown('<div class="foot">MUHAMMED SWALIH · Crafted with XGBoost · © 2025</div>', unsafe_allow_html=True)
