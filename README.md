@@ -251,9 +251,11 @@ gaming-engagement-ml/
 │
 ├── models/
 │   └── xgboost_pipeline.joblib
+│   └── label_mapping.joblib
 │
 ├── notebooks/
 │   └── gaming_engagement_modeling.ipynb
+│   └── model_prediction_demo.ipynb
 │
 ├── reports/
 │   └── figures/
