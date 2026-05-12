@@ -276,6 +276,7 @@ gaming-engagement-ml/
 │   └── figures/
 │       ├── eda/            # 8 EDA visualizations
 │       └── modeling/       # 6 modeling visualizations
+│       └── app/            # 3 Streamlit dashboard previews
 │
 ├── .gitignore
 ├── README.md 
