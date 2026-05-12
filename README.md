@@ -1,5 +1,20 @@
 # Gaming Engagement Level Prediction
 
+## Live Application
+
+Try the deployed Streamlit app here:
+
+https://online-gaming-behavior-prediction.streamlit.app
+
+### Streamlit App - Home Page
+![Streamlit - Home Page](reports/figures/app/streamlit-dashboard-home.png)
+
+### Streamlit App - Player Input Panel
+![Streamlit - Player Input Panel](reports/figures/app/streamlit-player-input-panel.png)
+
+### Streamlit App - Live Prediction Results
+![Streamlit - Live Prediction Results](reports/figures/app/streamlit-prediction-results.png)
+
 ## Project Overview
 
 This project develops a supervised multi-class classification model to predict player engagement levels (Low, Medium, High) using gameplay behavior and player attributes from an online gaming dataset containing 40,034 users.
